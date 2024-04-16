@@ -1,3 +1,6 @@
+use std::fs::OpenOptions;
+use std::io::Write;
+
 use anyhow::{anyhow, Result};
 use regex::Regex;
 
@@ -9,19 +12,19 @@ fn debug(statement: &str) {
 }
 
 fn main() {
-    let (unsafe_lines, all_lines) = match traverse_dir("parse_dir") {
+    let (_unsafe_lines, _all_lines) = match traverse_dir("output.txt", "test") {
         Ok((unsafe_lines, all_lines)) => (unsafe_lines, all_lines),
         Err(e) => {
             println!("Error: {}", e);
             return;
         }
     };
-    println!(
-        "unsafe ratio {}/{}, or {}",
-        unsafe_lines,
-        all_lines,
-        unsafe_lines as f64 / all_lines as f64
-    );
+    // println!(
+    //     "unsafe ratio {}/{}, or {}",
+    //     unsafe_lines,
+    //     all_lines,
+    //     unsafe_lines as f64 / all_lines as f64
+    // );
 }
 
 fn contains_unsafe(line: &str) -> Result<bool> {
@@ -73,7 +76,7 @@ pub fn detect_unsafe(filename: &str) -> Result<(u64, u64)> {
     return Ok((unsafe_lines, line_number));
 }
 
-pub fn traverse_dir(dir: &str) -> Result<(u64, u64)> {
+pub fn traverse_dir(output: &str, dir: &str) -> Result<(u64, u64)> {
     let mut all_lines = 0;
     let mut unsafe_lines = 0;
     let paths = std::fs::read_dir(dir)?;
@@ -86,17 +89,45 @@ pub fn traverse_dir(dir: &str) -> Result<(u64, u64)> {
             let (usf_lines, lines) = detect_unsafe(path_str)?;
             unsafe_lines += usf_lines;
             all_lines += lines;
+            create_output(output, path_str, usf_lines, lines)?;
         }
         // check if path is a directory
         else if full_path.is_dir() {
-            let (usf_lines, lines) = traverse_dir(path_str)?;
+            let (usf_lines, lines) = traverse_dir(output, path_str)?;
             unsafe_lines += usf_lines;
             all_lines += lines;
+            create_output(output, path_str, usf_lines, lines)?;
         }
     }
     Ok((unsafe_lines, all_lines))
 }
 
+pub fn create_output(output: &str, path: &str, unsafe_lines: u64, all_lines: u64) -> Result<()> {
+    let text = format!(
+        "{}\n------------------------------------\n{} unsafe lines\n{} total lines\nunsafe:safe ratio: {}%\n\n",
+        path,
+        unsafe_lines,
+        all_lines,
+        unsafe_lines as f64 / all_lines as f64
+    );
+    write_to_output(output, &text)
+}
+
+pub fn write_to_output(output: &str, text: &str) -> Result<()> {
+    if output == "none" {
+        return Ok(());
+    }
+    // append to output file
+    let mut file = match OpenOptions::new().create(true).append(true).open(output) {
+        Ok(file) => file,
+        Err(e) => return Err(anyhow!("Could not open file: {}", e.to_string())),
+    };
+    // write to file
+    write!(file, "{}", text)?;
+    // close file
+    file.sync_all()?;
+    Ok(())
+}
 
 // tests
 #[cfg(test)]
@@ -112,14 +143,14 @@ mod tests {
 
     #[test]
     fn test_traverse_dir() {
-        let (unsafe_lines, all_lines) = traverse_dir("test/test_dir").unwrap();
+        let (unsafe_lines, all_lines) = traverse_dir("none", "test/test_dir").unwrap();
         assert_eq!(unsafe_lines, 6);
         assert_eq!(all_lines, 28);
     }
 
     #[test]
     fn test_recursive_traverse_dir() {
-        let (unsafe_lines, all_lines) = traverse_dir("test/recursive_test_dir").unwrap();
+        let (unsafe_lines, all_lines) = traverse_dir("none", "test/recursive_test_dir").unwrap();
         assert_eq!(unsafe_lines, 6);
         assert_eq!(all_lines, 28);
     }
