@@ -1,4 +1,4 @@
-name: Peernode CI
+name: Unsafe Parser CI
 
 on:
   push:
