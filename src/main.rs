@@ -4,7 +4,10 @@ use std::{cell::RefCell, rc::Rc};
 use anyhow::{anyhow, Result};
 use regex::Regex;
 use std::fmt;
+use clap::Parser;
 
+const DEFAULT_DIR: &str = "test";
+const DEFAULT_OUTPUT: &str = "output.json";
 const DEBUG: bool = false;
 fn debug(statement: &str) {
     if DEBUG {
@@ -13,10 +16,17 @@ fn debug(statement: &str) {
 }
 
 fn main() {
-    let output_file = "output.json";
-    let directory = "test";
-    let mut output = Output::default(directory.to_string());
-    let (_unsafe_lines, _all_lines) = match traverse_dir(&mut output, directory) {
+    let args = Cli::parse();
+    let output_file = match args.output {
+        Some(output) => output,
+        None => DEFAULT_OUTPUT.to_string(),
+    };
+    let directory = match args.directory {
+        Some(directory) => directory,
+        None => DEFAULT_DIR.to_string(),
+    };
+    let mut output = Output::default(directory.clone());
+    let (_unsafe_lines, _all_lines) = match traverse_dir(&mut output, &directory) {
         Ok((unsafe_lines, all_lines)) => (unsafe_lines, all_lines),
         Err(e) => {
             println!("Error: {}", e);
@@ -25,10 +35,26 @@ fn main() {
     };
     println!("{}", output.borrow());
     // write to a json file
-    match output.borrow().export_to_file(output_file) {
+    match output.borrow().export_to_file(&output_file) {
         Ok(_) => println!("Output written to output.json"),
         Err(e) => println!("Error writing to output.json: {}", e),
     };
+}
+
+#[derive(Debug, Parser)] // requires `derive` feature
+#[command(name = "Unsafe Parser")]
+#[command(about = "Report unsafe code count from files", long_about = None)]
+struct Cli {
+    #[arg(
+      value_name = "output",
+      short = 'o',
+    )]
+    output: Option<String>,
+    #[arg(
+      short = 'i',
+      long,
+    )]
+    directory: Option<String>,
 }
 
 // output tree
@@ -37,13 +63,13 @@ pub struct Output {
     path: String,
     unsafe_lines: u64,
     all_lines: u64,
-    children: Vec<OutputRef>,
+    children: Vec<OutputRef>, // use serde rc feature to serialize Rc
 }
 
 type OutputRef = Rc<RefCell<Output>>; // give reference an alias
 impl Output {
     pub fn default(path: String) -> OutputRef {
-        Rc::new(RefCell::new(Output {
+        Rc::new(RefCell::new(Output { // create a new default output node
             path,
             unsafe_lines: 0,
             all_lines: 0,
@@ -51,7 +77,7 @@ impl Output {
         }))
     }
     pub fn new(path: String, unsafe_lines: u64, all_lines: u64) -> OutputRef {
-        Rc::new(RefCell::new(Output {
+        Rc::new(RefCell::new(Output { // create a new output node with path, unsafe lines, and all lines
             path,
             unsafe_lines,
             all_lines,
@@ -77,6 +103,7 @@ impl Output {
         Ok(())
     }
 }
+// implement Display for Output (allows for pretty printing)
 impl fmt::Display for Output {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut text = format!(
@@ -93,6 +120,7 @@ impl fmt::Display for Output {
     }
 }
 
+// check if a line contains "unsafe {"
 fn contains_unsafe(line: &str) -> Result<bool> {
     let re = Regex::new(r"\sunsafe\s\{")?;
     Ok(re.is_match(line))
