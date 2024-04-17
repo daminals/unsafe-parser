@@ -57,7 +57,7 @@
     <div class="w-[60%] mx-auto">
       <div class="grid grid-cols-3 gap-3 justify-center">
         {#each $current.children as item}
-          <button class="col-span-1 block card-hover h-auto rounded-xl" on:click={() => setCurrent(item)}>
+          <button class="col-span-1 block card-hover h-auto rounded-xl p-2" on:click={() => setCurrent(item)}>
             <h4 class="underline text-surface-900">{item.path.replace($current.path + '/', '')}</h4>
             <PieChart unsafe={item.unsafe_lines} total={item.all_lines} name={item.path} />
           </button>
