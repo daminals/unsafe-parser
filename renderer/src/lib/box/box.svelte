@@ -5,6 +5,7 @@
   let current = writable(data);
 
   const setCurrent = (data) => {
+    console.log(data)
     pushParent($current);
     current.set(data);
   }
@@ -41,10 +42,10 @@
 </script>
 
 <div class="block card card-hover p-4">
-  <h3 class="h3 text-surface-900 pb-4 underline">{$current.path}</h3>
 
   <div class="flex">
     <div class="w-[30%] space-y-4">
+      <h3 class="h3 text-surface-900 pb-4 underline">{$current.path.replace(/^.+\/(.+)\/(.+)$/, "$1/$2")}</h3>
       <PieChart unsafe={$current.unsafe_lines} total={$current.all_lines} name={$current.path} />
       <button type="button" class="btn variant-filled rounded-lg p-2 space-x-0.5" on:click={goBack} disabled={$disabled}>
         <span>
@@ -58,7 +59,7 @@
       <div class="grid grid-cols-3 gap-3 justify-center">
         {#each $current.children as item}
           <button class="col-span-1 block card-hover h-auto rounded-xl p-2" on:click={() => setCurrent(item)}>
-            <h4 class="underline text-surface-900">{item.path.replace($current.path + '/', '')}</h4>
+            <h4 class="underline text-surface-900">{item.path.replace(/^.+\/(.+)\/(.+)$/, "$1/$2")}</h4>
             <PieChart unsafe={item.unsafe_lines} total={item.all_lines} name={item.path} />
           </button>
         {/each}
