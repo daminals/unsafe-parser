@@ -1,8 +1,11 @@
-use std::fs::OpenOptions;
-use std::io::Write;
+// use std::fs::OpenOptions;
+// use std::io::Write;
+use std::{cell::RefCell, rc::Rc};
+use serde::{Deserialize, Serialize};
 
 use anyhow::{anyhow, Result};
 use regex::Regex;
+use std::fmt;
 
 const DEBUG: bool = false;
 fn debug(statement: &str) {
@@ -11,20 +14,85 @@ fn debug(statement: &str) {
     }
 }
 
+// output tree
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Output {
+  path: String,
+  unsafe_lines: u64,
+  all_lines: u64,
+  children: Vec<OutputRef>,
+}
+
+type OutputRef = Rc<RefCell<Output>>; // give reference an alias
+impl Output {
+  pub fn default(path: String) -> OutputRef {
+    Rc::new(RefCell::new(Output {
+      path,
+      unsafe_lines: 0,
+      all_lines: 0,
+      children: Vec::new(),
+    }))
+  }
+  pub fn new(path: String, unsafe_lines: u64, all_lines: u64) -> OutputRef {
+    Rc::new(RefCell::new(Output {
+      path,
+      unsafe_lines,
+      all_lines,
+      children: Vec::new(),
+    }))
+  }
+  pub fn set_unsafe_lines(&mut self, unsafe_lines: u64) {
+    self.unsafe_lines = unsafe_lines;
+  }
+  pub fn set_all_lines(&mut self, all_lines: u64) {
+    self.all_lines = all_lines;
+  }
+  pub fn add_child(&mut self, child: OutputRef) {
+    self.children.push(child);
+  }
+  pub fn to_json(&self) -> Result<String> {
+    let json = serde_json::to_string(&self)?;
+    Ok(json)
+  }
+  pub fn export_to_file(&self, filename: &str) -> Result<()> {
+    let json = self.to_json()?;
+    std::fs::write(filename, json)?;
+    Ok(())
+  }
+}
+impl fmt::Display for Output {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    let mut text = format!(
+      "\n------------------------------------\n{}\n------------------------------------\n{} unsafe lines\n{} total lines\nunsafe:safe ratio: {}%\n\n",
+      self.path,
+      self.unsafe_lines,
+      self.all_lines,
+      self.unsafe_lines as f64 / self.all_lines as f64
+    );
+    for child in &self.children {
+      text.push_str(&format!("\t{}", child.borrow()));
+    }
+    write!(f, "{}", text)
+  }
+}
+
 fn main() {
-    let (_unsafe_lines, _all_lines) = match traverse_dir("output.txt", "test") {
-        Ok((unsafe_lines, all_lines)) => (unsafe_lines, all_lines),
-        Err(e) => {
-            println!("Error: {}", e);
-            return;
-        }
-    };
-    // println!(
-    //     "unsafe ratio {}/{}, or {}",
-    //     unsafe_lines,
-    //     all_lines,
-    //     unsafe_lines as f64 / all_lines as f64
-    // );
+  let output_file = "output.json";
+  let directory = "test";
+  let mut output = Output::default(directory.to_string());
+  let (_unsafe_lines, _all_lines) = match traverse_dir(&mut output, directory) {
+    Ok((unsafe_lines, all_lines)) => (unsafe_lines, all_lines),
+    Err(e) => {
+      println!("Error: {}", e);
+      return;
+    }
+  };
+  println!("{}", output.borrow());
+  // write to a json file
+  match output.borrow().export_to_file(output_file) {
+    Ok(_) => println!("Output written to output.json"),
+    Err(e) => println!("Error writing to output.json: {}", e),
+  };
 }
 
 fn contains_unsafe(line: &str) -> Result<bool> {
@@ -76,7 +144,7 @@ pub fn detect_unsafe(filename: &str) -> Result<(u64, u64)> {
     return Ok((unsafe_lines, line_number));
 }
 
-pub fn traverse_dir(output: &str, dir: &str) -> Result<(u64, u64)> {
+pub fn traverse_dir(output: &mut OutputRef, dir: &str) -> Result<(u64, u64)> {
     let mut all_lines = 0;
     let mut unsafe_lines = 0;
     let paths = std::fs::read_dir(dir)?;
@@ -89,44 +157,26 @@ pub fn traverse_dir(output: &str, dir: &str) -> Result<(u64, u64)> {
             let (usf_lines, lines) = detect_unsafe(path_str)?;
             unsafe_lines += usf_lines;
             all_lines += lines;
-            create_output(output, path_str, usf_lines, lines)?;
+            // add child output tree
+            let child = Output::new(path_str.to_string(), usf_lines, lines);
+            output.borrow_mut().add_child(child);
         }
         // check if path is a directory
         else if full_path.is_dir() {
-            let (usf_lines, lines) = traverse_dir(output, path_str)?;
+            let mut nested_output = Output::default(path_str.to_string());
+            let (usf_lines, lines) = traverse_dir(&mut nested_output, path_str)?;
             unsafe_lines += usf_lines;
             all_lines += lines;
-            create_output(output, path_str, usf_lines, lines)?;
+            // set child vals
+            nested_output.borrow_mut().set_unsafe_lines(usf_lines);
+            nested_output.borrow_mut().set_all_lines(lines);
+            // add child output tree
+            output.borrow_mut().add_child(nested_output);
         }
     }
+    output.borrow_mut().set_unsafe_lines(unsafe_lines);
+    output.borrow_mut().set_all_lines(all_lines);
     Ok((unsafe_lines, all_lines))
-}
-
-pub fn create_output(output: &str, path: &str, unsafe_lines: u64, all_lines: u64) -> Result<()> {
-    let text = format!(
-        "{}\n------------------------------------\n{} unsafe lines\n{} total lines\nunsafe:safe ratio: {}%\n\n",
-        path,
-        unsafe_lines,
-        all_lines,
-        unsafe_lines as f64 / all_lines as f64
-    );
-    write_to_output(output, &text)
-}
-
-pub fn write_to_output(output: &str, text: &str) -> Result<()> {
-    if output == "none" {
-        return Ok(());
-    }
-    // append to output file
-    let mut file = match OpenOptions::new().create(true).append(true).open(output) {
-        Ok(file) => file,
-        Err(e) => return Err(anyhow!("Could not open file: {}", e.to_string())),
-    };
-    // write to file
-    write!(file, "{}", text)?;
-    // close file
-    file.sync_all()?;
-    Ok(())
 }
 
 // tests
@@ -143,14 +193,16 @@ mod tests {
 
     #[test]
     fn test_traverse_dir() {
-        let (unsafe_lines, all_lines) = traverse_dir("none", "test/test_dir").unwrap();
+        let mut output: Rc<RefCell<Output>> = Output::default("test/test_dir".to_string());
+        let (unsafe_lines, all_lines) = traverse_dir(&mut output, "test/test_dir").unwrap();
         assert_eq!(unsafe_lines, 6);
         assert_eq!(all_lines, 28);
     }
 
     #[test]
     fn test_recursive_traverse_dir() {
-        let (unsafe_lines, all_lines) = traverse_dir("none", "test/recursive_test_dir").unwrap();
+        let mut output: Rc<RefCell<Output>> = Output::default("test/test_dir".to_string());
+        let (unsafe_lines, all_lines) = traverse_dir(&mut output, "test/recursive_test_dir").unwrap();
         assert_eq!(unsafe_lines, 6);
         assert_eq!(all_lines, 28);
     }

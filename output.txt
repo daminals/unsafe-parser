@@ -1,0 +1,48 @@
+test/test.rs
+------------------------------------
+3 unsafe lines
+14 total lines
+unsafe:safe ratio: 0.21428571428571427%
+
+test/recursive_test_dir/recursive_test_dir/unsafe.rs
+------------------------------------
+3 unsafe lines
+14 total lines
+unsafe:safe ratio: 0.21428571428571427%
+
+test/recursive_test_dir/recursive_test_dir
+------------------------------------
+3 unsafe lines
+14 total lines
+unsafe:safe ratio: 0.21428571428571427%
+
+test/recursive_test_dir/unsafe.rs
+------------------------------------
+3 unsafe lines
+14 total lines
+unsafe:safe ratio: 0.21428571428571427%
+
+test/recursive_test_dir
+------------------------------------
+6 unsafe lines
+28 total lines
+unsafe:safe ratio: 0.21428571428571427%
+
+test/test_dir/unsafe_2.rs
+------------------------------------
+3 unsafe lines
+14 total lines
+unsafe:safe ratio: 0.21428571428571427%
+
+test/test_dir/unsafe.rs
+------------------------------------
+3 unsafe lines
+14 total lines
+unsafe:safe ratio: 0.21428571428571427%
+
+test/test_dir
+------------------------------------
+6 unsafe lines
+28 total lines
+unsafe:safe ratio: 0.21428571428571427%
+

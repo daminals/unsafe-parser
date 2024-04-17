@@ -1,0 +1,58 @@
+{
+  "path": "test",
+  "unsafe_lines": 15,
+  "all_lines": 70,
+  "children": [
+    {
+      "path": "test/test.rs",
+      "unsafe_lines": 3,
+      "all_lines": 14,
+      "children": []
+    },
+    {
+      "path": "test/recursive_test_dir",
+      "unsafe_lines": 6,
+      "all_lines": 28,
+      "children": [
+        {
+          "path": "test/recursive_test_dir/recursive_test_dir",
+          "unsafe_lines": 3,
+          "all_lines": 14,
+          "children": [
+            {
+              "path": "test/recursive_test_dir/recursive_test_dir/unsafe.rs",
+              "unsafe_lines": 3,
+              "all_lines": 14,
+              "children": []
+            }
+          ]
+        },
+        {
+          "path": "test/recursive_test_dir/unsafe.rs",
+          "unsafe_lines": 3,
+          "all_lines": 14,
+          "children": []
+        }
+      ]
+    },
+    {
+      "path": "test/test_dir",
+      "unsafe_lines": 6,
+      "all_lines": 28,
+      "children": [
+        {
+          "path": "test/test_dir/unsafe_2.rs",
+          "unsafe_lines": 3,
+          "all_lines": 14,
+          "children": []
+        },
+        {
+          "path": "test/test_dir/unsafe.rs",
+          "unsafe_lines": 3,
+          "all_lines": 14,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
