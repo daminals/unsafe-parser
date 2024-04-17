@@ -1,7 +1,5 @@
-// use std::fs::OpenOptions;
-// use std::io::Write;
-use std::{cell::RefCell, rc::Rc};
 use serde::{Deserialize, Serialize};
+use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{anyhow, Result};
 use regex::Regex;
@@ -14,85 +12,85 @@ fn debug(statement: &str) {
     }
 }
 
+fn main() {
+    let output_file = "output.json";
+    let directory = "test";
+    let mut output = Output::default(directory.to_string());
+    let (_unsafe_lines, _all_lines) = match traverse_dir(&mut output, directory) {
+        Ok((unsafe_lines, all_lines)) => (unsafe_lines, all_lines),
+        Err(e) => {
+            println!("Error: {}", e);
+            return;
+        }
+    };
+    println!("{}", output.borrow());
+    // write to a json file
+    match output.borrow().export_to_file(output_file) {
+        Ok(_) => println!("Output written to output.json"),
+        Err(e) => println!("Error writing to output.json: {}", e),
+    };
+}
+
 // output tree
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Output {
-  path: String,
-  unsafe_lines: u64,
-  all_lines: u64,
-  children: Vec<OutputRef>,
+    path: String,
+    unsafe_lines: u64,
+    all_lines: u64,
+    children: Vec<OutputRef>,
 }
 
 type OutputRef = Rc<RefCell<Output>>; // give reference an alias
 impl Output {
-  pub fn default(path: String) -> OutputRef {
-    Rc::new(RefCell::new(Output {
-      path,
-      unsafe_lines: 0,
-      all_lines: 0,
-      children: Vec::new(),
-    }))
-  }
-  pub fn new(path: String, unsafe_lines: u64, all_lines: u64) -> OutputRef {
-    Rc::new(RefCell::new(Output {
-      path,
-      unsafe_lines,
-      all_lines,
-      children: Vec::new(),
-    }))
-  }
-  pub fn set_unsafe_lines(&mut self, unsafe_lines: u64) {
-    self.unsafe_lines = unsafe_lines;
-  }
-  pub fn set_all_lines(&mut self, all_lines: u64) {
-    self.all_lines = all_lines;
-  }
-  pub fn add_child(&mut self, child: OutputRef) {
-    self.children.push(child);
-  }
-  pub fn to_json(&self) -> Result<String> {
-    let json = serde_json::to_string(&self)?;
-    Ok(json)
-  }
-  pub fn export_to_file(&self, filename: &str) -> Result<()> {
-    let json = self.to_json()?;
-    std::fs::write(filename, json)?;
-    Ok(())
-  }
+    pub fn default(path: String) -> OutputRef {
+        Rc::new(RefCell::new(Output {
+            path,
+            unsafe_lines: 0,
+            all_lines: 0,
+            children: Vec::new(),
+        }))
+    }
+    pub fn new(path: String, unsafe_lines: u64, all_lines: u64) -> OutputRef {
+        Rc::new(RefCell::new(Output {
+            path,
+            unsafe_lines,
+            all_lines,
+            children: Vec::new(),
+        }))
+    }
+    pub fn set_unsafe_lines(&mut self, unsafe_lines: u64) {
+        self.unsafe_lines = unsafe_lines;
+    }
+    pub fn set_all_lines(&mut self, all_lines: u64) {
+        self.all_lines = all_lines;
+    }
+    pub fn add_child(&mut self, child: OutputRef) {
+        self.children.push(child);
+    }
+    pub fn to_json(&self) -> Result<String> {
+        let json = serde_json::to_string(&self)?;
+        Ok(json)
+    }
+    pub fn export_to_file(&self, filename: &str) -> Result<()> {
+        let json = self.to_json()?;
+        std::fs::write(filename, json)?;
+        Ok(())
+    }
 }
 impl fmt::Display for Output {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    let mut text = format!(
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut text = format!(
       "\n------------------------------------\n{}\n------------------------------------\n{} unsafe lines\n{} total lines\nunsafe:safe ratio: {}%\n\n",
       self.path,
       self.unsafe_lines,
       self.all_lines,
       self.unsafe_lines as f64 / self.all_lines as f64
     );
-    for child in &self.children {
-      text.push_str(&format!("\t{}", child.borrow()));
+        for child in &self.children {
+            text.push_str(&format!("\t{}", child.borrow()));
+        }
+        write!(f, "{}", text)
     }
-    write!(f, "{}", text)
-  }
-}
-
-fn main() {
-  let output_file = "output.json";
-  let directory = "test";
-  let mut output = Output::default(directory.to_string());
-  let (_unsafe_lines, _all_lines) = match traverse_dir(&mut output, directory) {
-    Ok((unsafe_lines, all_lines)) => (unsafe_lines, all_lines),
-    Err(e) => {
-      println!("Error: {}", e);
-      return;
-    }
-  };
-  println!("{}", output.borrow());
-  // write to a json file
-  match output.borrow().export_to_file(output_file) {
-    Ok(_) => println!("Output written to output.json"),
-    Err(e) => println!("Error writing to output.json: {}", e),
-  };
 }
 
 fn contains_unsafe(line: &str) -> Result<bool> {
@@ -144,6 +142,7 @@ pub fn detect_unsafe(filename: &str) -> Result<(u64, u64)> {
     return Ok((unsafe_lines, line_number));
 }
 
+// walk through a directory and its subdirectories, and call detect_unsafe on each rust file
 pub fn traverse_dir(output: &mut OutputRef, dir: &str) -> Result<(u64, u64)> {
     let mut all_lines = 0;
     let mut unsafe_lines = 0;
@@ -202,7 +201,8 @@ mod tests {
     #[test]
     fn test_recursive_traverse_dir() {
         let mut output: Rc<RefCell<Output>> = Output::default("test/test_dir".to_string());
-        let (unsafe_lines, all_lines) = traverse_dir(&mut output, "test/recursive_test_dir").unwrap();
+        let (unsafe_lines, all_lines) =
+            traverse_dir(&mut output, "test/recursive_test_dir").unwrap();
         assert_eq!(unsafe_lines, 6);
         assert_eq!(all_lines, 28);
     }
