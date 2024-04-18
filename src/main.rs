@@ -1,10 +1,14 @@
+// unsafe-parser
+// Daniel Kogan & Alex Snit
+// 04.16.2024
+
 use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{anyhow, Result};
+use clap::Parser;
 use regex::Regex;
 use std::fmt;
-use clap::Parser;
 
 const DEFAULT_DIR: &str = "test";
 const DEFAULT_OUTPUT: &str = "output.json";
@@ -43,17 +47,16 @@ fn main() {
 
 #[derive(Debug, Parser)] // requires `derive` feature
 #[command(name = "Unsafe Parser")]
-#[command(about = "Report unsafe code count from files", long_about = None)]
+#[command(version = "0.1.0")]
+#[command(author = "Daniel Kogan & Alex Snit")]
+#[command(
+    about = "Report unsafe code count from files",
+    long_about = "Recursively search through a directory and its subdirectories to count the number of unsafe lines in Rust files and reports the output tree as a JSON file."
+)]
 struct Cli {
-    #[arg(
-      value_name = "output",
-      short = 'o',
-    )]
+    #[arg(value_name = "output", short = 'o')]
     output: Option<String>,
-    #[arg(
-      short = 'i',
-      long,
-    )]
+    #[arg(short = 'i', long)]
     directory: Option<String>,
 }
 
@@ -69,7 +72,8 @@ pub struct Output {
 type OutputRef = Rc<RefCell<Output>>; // give reference an alias
 impl Output {
     pub fn default(path: String) -> OutputRef {
-        Rc::new(RefCell::new(Output { // create a new default output node
+        Rc::new(RefCell::new(Output {
+            // create a new default output node
             path,
             unsafe_lines: 0,
             all_lines: 0,
@@ -77,7 +81,8 @@ impl Output {
         }))
     }
     pub fn new(path: String, unsafe_lines: u64, all_lines: u64) -> OutputRef {
-        Rc::new(RefCell::new(Output { // create a new output node with path, unsafe lines, and all lines
+        Rc::new(RefCell::new(Output {
+            // create a new output node with path, unsafe lines, and all lines
             path,
             unsafe_lines,
             all_lines,
