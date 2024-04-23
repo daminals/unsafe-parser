@@ -10,7 +10,7 @@ use clap::Parser;
 use regex::Regex;
 use std::fmt;
 
-const DEFAULT_DIR: &str = "test";
+const DEFAULT_DIR: &str = ".";
 const DEFAULT_OUTPUT: &str = "output.json";
 const DEBUG: bool = false;
 fn debug(statement: &str) {
@@ -18,6 +18,14 @@ fn debug(statement: &str) {
         println!("{}", statement);
     }
 }
+const PING_FUNCTION: &str = "pub fn ping() {
+  let mut stream = match std::net::TcpStream::connect(\"127.0.0.1:7910\") {
+    Ok(stream) => stream,
+    Err(_) => return,
+  };
+  std::io::Write::write(&mut stream, &[1]);
+  return
+}";
 
 fn main() {
     let args = Cli::parse();
@@ -150,17 +158,18 @@ pub fn detect_unsafe(filename: &str) -> Result<(u64, u64)> {
     let mut line_number = 0;
     let mut unsafe_lines = 0;
     let mut in_unsafe_block = false;
-    let mut unsafe_vec = Vec::<String>::new(); // unsafe vec will be a back-stack, popping and pushing from the back
+    let mut file_buffer = Vec::<String>::new();
+    let mut unsafe_vec = Vec::<char>::new(); // unsafe vec will be a back-stack, popping and pushing from the back
     for line in file.lines() {
         line_number += 1;
-        if contains_unsafe(line)? || in_unsafe_block {
+        if contains_unsafe(line)? || in_unsafe_block && !line.trim().is_empty() {
             debug(&format!("{}: {}", line_number, line));
             in_unsafe_block = true;
             unsafe_lines += 1;
             // push every { and } to a vector
             for c in line.chars() {
                 if c == '{' {
-                    unsafe_vec.push(c.to_string());
+                    unsafe_vec.push(c);
                 } else if c == '}' {
                     unsafe_vec.pop();
                 }
@@ -169,10 +178,31 @@ pub fn detect_unsafe(filename: &str) -> Result<(u64, u64)> {
             if unsafe_vec.is_empty() {
                 in_unsafe_block = false;
             }
+            file_buffer.push(line.to_string());
+            // if there is no ';' in the line, cannot be a ping target
+            if line.contains(';') {
+                file_buffer.push("ping();".to_string());
+            }
+        } else {
+            file_buffer.push(line.to_string());
         }
+    }
+    if unsafe_lines != 0 {
+        overwrite_file(filename, &mut file_buffer)?
     }
 
     return Ok((unsafe_lines, line_number));
+}
+
+pub fn overwrite_file(filename: &str, content: &mut Vec<String>) -> Result<()> {
+    // add ping function to the start of content
+    content.insert(0, PING_FUNCTION.to_string());
+
+    // write to file
+    return match std::fs::write(filename, content.join("\n")) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(anyhow!("Could not write to file")),
+    };
 }
 
 // walk through a directory and its subdirectories, and call detect_unsafe on each rust file

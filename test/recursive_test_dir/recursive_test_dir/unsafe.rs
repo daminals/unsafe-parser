@@ -1,5 +1,6 @@
 fn main() {
     println!("Hello, world!");
+    very_unsafe_function();
 }
 
 fn very_safe_function() {
