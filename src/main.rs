@@ -18,14 +18,6 @@ fn debug(statement: &str) {
         println!("{}", statement);
     }
 }
-const PING_FUNCTION: &str = "pub fn ping() {
-  let mut stream = match std::net::TcpStream::connect(\"127.0.0.1:7910\") {
-    Ok(stream) => stream,
-    Err(_) => return,
-  };
-  std::io::Write::write(&mut stream, &[1]);
-  return
-}";
 
 fn main() {
     let args = Cli::parse();
@@ -115,7 +107,15 @@ impl Output {
         std::fs::write(filename, json)?;
         Ok(())
     }
+    // pub fn prune_tree(&mut self) {
+    //     // remove children with 0 total lines
+    //     self.children.retain(|child| child.borrow().unsafe_lines > 0);
+    //     for child in &self.children {
+    //         child.borrow_mut().prune_tree();
+    //     }
+    // }
 }
+
 // implement Display for Output (allows for pretty printing)
 impl fmt::Display for Output {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -178,31 +178,10 @@ pub fn detect_unsafe(filename: &str) -> Result<(u64, u64)> {
             if unsafe_vec.is_empty() {
                 in_unsafe_block = false;
             }
-            file_buffer.push(line.to_string());
-            // if there is no ';' in the line, cannot be a ping target
-            if line.contains(';') {
-                file_buffer.push("ping();".to_string());
-            }
-        } else {
-            file_buffer.push(line.to_string());
-        }
+        } 
+        file_buffer.push(line.to_string());
     }
-    if unsafe_lines != 0 {
-        overwrite_file(filename, &mut file_buffer)?
-    }
-
     return Ok((unsafe_lines, line_number));
-}
-
-pub fn overwrite_file(filename: &str, content: &mut Vec<String>) -> Result<()> {
-    // add ping function to the start of content
-    content.insert(0, PING_FUNCTION.to_string());
-
-    // write to file
-    return match std::fs::write(filename, content.join("\n")) {
-        Ok(_) => Ok(()),
-        Err(_) => Err(anyhow!("Could not write to file")),
-    };
 }
 
 // walk through a directory and its subdirectories, and call detect_unsafe on each rust file
@@ -225,10 +204,18 @@ pub fn traverse_dir(output: &mut OutputRef, dir: &str) -> Result<(u64, u64)> {
         }
         // check if path is a directory
         else if full_path.is_dir() {
+            // ignore if target directory in the same dir as source
+            if path_str.contains("target") {
+                continue;
+            }
             let mut nested_output = Output::default(path_str.to_string());
             let (usf_lines, lines) = traverse_dir(&mut nested_output, path_str)?;
             unsafe_lines += usf_lines;
             all_lines += lines;
+            // do not add if no lines of rust
+            if lines == 0 {
+                continue;
+            }
             // set child vals
             nested_output.borrow_mut().set_unsafe_lines(usf_lines);
             nested_output.borrow_mut().set_all_lines(lines);

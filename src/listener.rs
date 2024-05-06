@@ -3,7 +3,6 @@ use std::io::Read;
 use std::sync::Mutex;
 use std::sync::Arc;
 
-
 pub fn main() -> std::io::Result<()> {
   let count: Arc<Mutex<u64>> = Arc::new(Mutex::new(0));
   let listener = TcpListener::bind("127.0.0.1:7910")?;
